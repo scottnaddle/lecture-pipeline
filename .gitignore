@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Virtual env
+.venv/
+.venv-tts/
+venv/
+env/
+
+# 환경설정 (API 키 포함)
+.env
+.env.local
+.env.*.local
+
+# 상태/로그
+*.log
+pipeline/logs/
+pipeline/dashboard.html
+pipeline/__pycache__/
+
+# 산출물 (필요시 추가는 가능)
+00_매니페스트/manifest.json
+project.json
+state.json
+
+# 미디어 산출물 (대용량)
+01_스크립트/scripts/*.txt
+02_음성/**/*.mp3
+02_음성/**/concat*
+03_영상/ch*_pngs/
+03_영상/ch*_clips/
+04_자막/*.srt
+05_MP4/*.mp4
+06_SCORM/*.zip
+99_로그/
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# 임시
+/tmp/
+*.tmp
+*.bak
