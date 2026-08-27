@@ -47,13 +47,14 @@ class PipelineRunner:
         return str(venv / "bin" / "python")
 
     def _script_path(self, name: str) -> Path:
-        return self.proj / {
-            "batch_tts": "02_음성" / "batch_tts.py",
-            "render": "03_영상" / "render_slides_ffmpeg.py",
-            "pngs": "03_영상" / "generate_pngs.py",
-            "srt": "04_자막" / "generate_srt.py",
-            "scorm": "06_SCORM" / "build_scorm.py",
-        }[name]
+        rel_paths = {
+            "batch_tts": Path("02_음성") / "batch_tts.py",
+            "render": Path("03_영상") / "render_slides_ffmpeg.py",
+            "pngs": Path("03_영상") / "generate_pngs.py",
+            "srt": Path("04_자막") / "generate_srt.py",
+            "scorm": Path("06_SCORM") / "build_scorm.py",
+        }
+        return self.proj / rel_paths[name]
 
     def _run(self, args: list[str], timeout: int = 1800) -> tuple[int, str]:
         proc = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
@@ -161,9 +162,28 @@ class PipelineRunner:
             return StageResult("failed", f"SCORM zip 없음: {zip_path}")
         return StageResult("completed", f"{zip_path.stat().st_size//1024}KB")
 
+    def _verify_voice_clone(self, chapter_no: str) -> StageResult:
+        """ElevenLabs voice_id가 state에 있고, 참조 음성 파일도 존재하면 완료."""
+        voice_id = self.state.elevenlabs.get("voice_id", "")
+        if not voice_id:
+            return StageResult("failed", "voice_id 미설정 (clone-voice 실행 필요)")
+        ref_audios = self.state.elevenlabs.get("ref_audios", [])
+        if not ref_audios:
+            return StageResult("failed", "ref_audios 미설정")
+        # 참조 음성 파일 실재 확인
+        missing = [r for r in ref_audios if not (self.root / r).exists()]
+        if missing:
+            return StageResult("failed", f"참조 음성 없음: {missing}")
+        return StageResult("completed", f"voice_id={voice_id[:12]}... ({len(ref_audios)}개 참조)", {
+            "voice_id": voice_id,
+            "ref_audios": ref_audios,
+            "model": self.state.elevenlabs.get("model", ""),
+        })
+
     VERIFIERS = {
         "script": _verify_script,
         "pngs": _verify_pngs,
+        "voice_clone": _verify_voice_clone,
         "tts": _verify_tts,
         "render": _verify_render,
         "srt": _verify_srt,
@@ -184,11 +204,38 @@ class PipelineRunner:
             # 스크립트는 수동 작성 또는 AI 생성 — 자동 실행 없음
             return StageResult("skipped", "스크립트는 수동 또는 AI 별도 호출 필요")
 
+        if stage == "voice_clone":
+            # 음성 클론: 이미 voice_id 있으면 스킵, 없으면 02_음성/voice_ref/*.wav 로 클론
+            existing = self.state.elevenlabs.get("voice_id", "")
+            if existing:
+                return StageResult("skipped", f"이미 클론됨: voice_id={existing[:12]}...")
+            ref_dir = self.root / "02_음성" / "voice_ref"
+            if not ref_dir.exists():
+                return StageResult("failed", f"참조 음성 디렉토리 없음: {ref_dir}")
+            refs = sorted(ref_dir.glob("*.wav"))
+            if not refs:
+                return StageResult("failed", f"참조 음성 .wav 없음: {ref_dir}")
+            try:
+                from .voice_clone import clone_voice
+                voice_id = clone_voice(
+                    self.root,
+                    refs,
+                    name=voice,
+                    model=self.state.elevenlabs.get("model", "eleven_multilingual_v2"),
+                )
+                # state 갱신 (clone_voice가 project.json에 쓰지만, 메모리 state도 동기화)
+                self.state.elevenlabs["voice_id"] = voice_id
+                return StageResult("completed", f"voice_id={voice_id[:12]}...")
+            except SystemExit as e:
+                return StageResult("failed", f"clone_voice 실패 (exit {e.code})")
+            except Exception as e:
+                return StageResult("failed", f"clone_voice 예외: {e}")
+
         if stage == "pngs":
             rc, out = self._run([py, str(self._script_path("pngs")), "--chapter", chapter_no], timeout=1800)
 
         elif stage == "tts":
-            rc, out = self._run([py, str(self._script_path("batch_tts")), "--chapter", chapter_no, "--speed", str(speed)], timeout=7200)
+            rc, out = self._run([py, str(self._script_path("batch_tts")), "--chapter", chapter_no, "--speed", str(speed), "--voice", voice], timeout=7200)
 
         elif stage == "render":
             rc, out = self._run([py, str(self._script_path("render")), "--chapter", chapter_no], timeout=3600)

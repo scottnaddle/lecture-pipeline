@@ -57,9 +57,14 @@ def clone_voice(
     print("ElevenLabs 클론 생성 중...")
     client = ElevenLabs(api_key=api_key)
     try:
+        # SDK v2.x 호환: bytes + 실제 파일명 전달 (None filename → 서버측 str 오인 버그 우회)
+        files = []
+        for r in saved:
+            data = Path(r).read_bytes()
+            files.append((Path(r).name, data, "audio/wav"))
         voice = client.voices.ivc.create(
             name=f"{state['project_id']}_{name}",
-            files=[(None, open(r, "rb"), "audio/wav") for r in saved],
+            files=files,
             labels={},
         )
     except Exception as e:

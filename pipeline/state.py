@@ -37,11 +37,12 @@ COMPLETED = "completed"
 FAILED = "failed"
 PARTIAL = "partial"
 
-ALL_STAGES = ("script", "pngs", "tts", "render", "srt", "scorm")
+ALL_STAGES = ("script", "pngs", "voice_clone", "tts", "render", "srt", "scorm")
 
 STAGE_LABELS = {
     "script": "슬라이드 스크립트",
     "pngs": "슬라이드 이미지",
+    "voice_clone": "음성 클론",
     "tts": "음성 합성",
     "render": "영상 렌더링",
     "srt": "자막",
@@ -52,7 +53,8 @@ STAGE_LABELS = {
 STAGE_DEPS = {
     "script": [],
     "pngs": [],
-    "tts": ["script"],
+    "voice_clone": [],
+    "tts": ["script", "voice_clone"],
     "render": ["pngs", "tts"],
     "srt": ["tts"],
     "scorm": ["render", "srt"],

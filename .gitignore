@@ -54,5 +54,17 @@ state.json
 
 # 임시
 /tmp/
-*.tmp
+*.tmp/
 *.bak
+
+# Claude Code 내부 상태
+.claude-flow/
+
+# RuVector 로컬 DB
+ruvector.db
+
+# 테스트 데이터 (API 키, 대용량 산출물 포함)
+test_data/
+
+# LibreOffice 잠금 파일
+.~lock.*

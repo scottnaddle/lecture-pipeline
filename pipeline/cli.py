@@ -317,6 +317,7 @@ def cmd_dashboard(args):
         paths = {
             "script": pd / "01_스크립트" / "scripts" / f"ch{ch}.txt",
             "pngs": pd / "03_영상" / f"ch{ch}_pngs",
+            "voice_clone": pd / "02_음성" / "voice_ref",
             "tts": pd / "02_음성" / ch,
             "render": pd / "05_MP4" / f"ch{ch}_full_{voice}.mp4",
             "srt": pd / "04_자막" / f"ch{ch}.srt",
@@ -327,7 +328,7 @@ def cmd_dashboard(args):
     rows = ""
     for ch in sorted(state["chapters"].keys()):
         c = state["chapters"][ch]
-        cells = "".join(f"<td>{s_check(ch, st)}</td>" for st in ["script","pngs","tts","render","srt","scorm"])
+        cells = "".join(f"<td>{s_check(ch, st)}</td>" for st in ALL_STAGES)
         rows += f'<tr><td><b>ch{ch}</b></td><td>{c.get("title","")}<br><span style="color:#666;font-size:0.85em">{c.get("section","")}</span></td>{cells}</tr>'
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     html = f"""<!doctype html><html lang=ko><head><meta charset=utf-8><title>{state['name']} 대시보드</title>
@@ -340,7 +341,7 @@ th{{background:#f4f4f4}}td{{text-align:center}}td:first-child{{text-align:left;f
 </style></head><body>
 <h1>{state['name']}</h1>
 <div class=meta>프로젝트: {state['project_id']} · 챕터 {len(state['chapters'])}개 · 음성: <code>{state['elevenlabs'].get('voice_id','?')}</code></div>
-<table><thead><tr><th>챕터</th><th>제목·섹션</th><th>스크립트</th><th>PNG</th><th>TTS</th><th>렌더</th><th>SRT</th><th>SCORM</th></tr></thead>
+<table><thead><tr><th>챕터</th><th>제목·섹션</th>{"".join(f"<th>{STAGE_LABELS[s]}</th>" for s in ALL_STAGES)}</tr></thead>
 <tbody>{rows}</tbody></table>
 <p class=meta>생성: {now} · <code>python -m pipeline dashboard --project-dir {pd}</code></p>
 </body></html>"""

@@ -8,8 +8,9 @@
 
 - **다중 AI 프로바이더**: OpenAI / Anthropic / z.ai (GLM) / Moonshot (Kimi) / MiniMax 자동 감지
 - **즉시 재개**: 시스템 종료, 크레딧 소진 등 실패 시 완료된 슬라이드부터 이어서 실행
-- **상태 추적**: `project.json`에 17챕터 × 6단계(script/pngs/tts/render/srt/scorm) 완료 여부 기록
+- **상태 추적**: `project.json`에 17챕터 × 7단계(script/pngs/voice_clone/tts/render/srt/scorm) 완료 여부 기록
 - **가변 차시 수**: 차시는 매니페스트 기반, 추가/삭제 자유
+- **음성 클론 통합**: `02_음성/voice_ref/`의 참조 음성만 넣으면 파이프라인 run 시 자동 클론
 - **CLI + Web UI**: FastAPI 대시보드 또는 정적 HTML (서버 없이 가능)
 
 ## 디렉토리 구조
@@ -21,7 +22,7 @@ lecture-pipeline/
 │   ├── cli.py                  # CLI 명령어
 │   ├── server.py               # FastAPI 웹 서버
 │   ├── state.py                # project.json 모델
-│   ├── stages.py               # 6단계 실행/검증
+│   ├── stages.py               # 7단계 실행/검증
 │   ├── orchestrator.py         # 전체 파이프라인 한 번에 실행
 │   ├── project_wizard.py       # 새 프로젝트 만들기
 │   ├── script_generator.py     # AI 스크립트 자동 생성
@@ -90,13 +91,16 @@ python3 -m pipeline new-project --name "AI 시대 교육" \
   --pptx-dir /path/to/pptx \
   --manuscript /path/to/text.md
 
+# 음성 클론 (선택: 즉시 실행, 또는 02_음성/voice_ref/*.wav 두고 pipeline run 시 자동)
+python3 -m pipeline clone-voice --project-dir . --ref-audio ref1.wav
+
 # AI 스크립트 자동 생성 (PPTX + 원고 → 35장 분량 나레이션)
 python3 -m pipeline generate-scripts --project-dir . --all
 
-# 음성 클론 (ElevenLabs Instant Voice Clone)
-python3 -m pipeline clone-voice --project-dir . --ref-audio ref1.wav
+# 음성 클론만 단독 실행 (파이프라인 단계)
+python3 -m pipeline run ch01 voice_clone
 
-# 전체 파이프라인 실행 (PNG → TTS → 렌더 → SRT → SCORM)
+# 전체 파이프라인 실행 (PNG → 음성 클론 → TTS → 렌더 → SRT → SCORM)
 python3 -m pipeline run --project-dir . --all
 
 # 챕터 추가/제거
@@ -146,16 +150,19 @@ DEFAULT_VOICE=main               # 파일명에 들어가는 라벨
 DEFAULT_SPEED=1.1                # TTS 속도
 ```
 
-## 6단계 파이프라인
+## 7단계 파이프라인
 
 | # | 단계 | 입력 | 출력 | 비고 |
 |---|---|---|---|---|
 | 1 | script | PPTX 텍스트 + 원고 | `01_스크립트/scripts/ch{NN}.txt` | AI 또는 수동 |
 | 2 | pngs | PPTX | `03_영상/ch{NN}_pngs/slide-*.png` | soffice + pdftoppm |
-| 3 | tts | 스크립트 | `02_음성/{NN}/s{NN}_*.mp3` | ElevenLabs Instant Voice Clone |
-| 4 | render | PNG + MP3 | `05_MP4/ch{NN}_full_*.mp4` | ffmpeg, bilinear, 정적 (떨림 없음) |
-| 5 | srt | MP3 길이 + 스크립트 | `04_자막/ch{NN}.srt` | 자막 자동 분할 |
-| 6 | scorm | MP4 + SRT | `06_SCORM/scorm_ch{NN}.zip` | SCORM 1.2 패키지 |
+| 3 | voice_clone | `02_음성/voice_ref/*.wav` | `project.json` (voice_id) | ElevenLabs Instant Voice Clone. `02_음성/voice_ref/`에 .wav만 두면 `pipeline run` 시 자동 실행. 이미 voice_id 있으면 스킵 |
+| 4 | tts | 스크립트 + voice_id | `02_음성/{NN}/s{NN}_*.mp3` | ElevenLabs TTS. voice_clone 완료된 voice_id 사용 |
+| 5 | render | PNG + MP3 | `05_MP4/ch{NN}_full_*.mp4` | ffmpeg, bilinear, 정적 (떨림 없음) |
+| 6 | srt | MP3 길이 + 스크립트 | `04_자막/ch{NN}.srt` | 자막 자동 분할 |
+| 7 | scorm | MP4 + SRT | `06_SCORM/scorm_ch{NN}.zip` | SCORM 1.2 패키지 |
+
+**의존성** (`STAGE_DEPS`): `script/pngs/voice_clone`은 독립, `tts`는 `script + voice_clone`, `render`는 `pngs + tts`, `srt`는 `tts`, `scorm`은 `render + srt` 후 실행 가능.
 
 ## 차시 수 가변
 
